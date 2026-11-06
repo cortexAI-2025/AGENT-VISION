@@ -16,10 +16,23 @@
 | Authentification des agents | Jeton par agent (SHA-256 stocké, temps constant) ; identité liée à la session MCP | `integration.test.ts` |
 | Journal d'audit | JSONL chaîné par hachage (`audit-verify`), accès autorisés **et** refusés, jamais d'image ni de secret | `core.test.ts`, `tools.test.ts` |
 
+## V1.1 : ajouts
+
+| Exigence | Mise en œuvre | Test |
+|---|---|---|
+| Aucun envoi distant d'image non assainie | OCR local vérifié, fail-closed (`sanitization_failed`) | `privacy.test.ts`, `ocr.test.ts` |
+| Images brutes inaccessibles par défaut | `allowRawImages` explicite ; ressource, `includeImage`, superposition de diff assainis | `v11-tools.test.ts` |
+| Observation consentie, bornée, révocable | grant local dédié, plafonds appareil + serveur, `stop`/`revoke` immédiats, redémarrage = sessions perdues | `observe.test.ts`, `observation.test.ts` |
+| Pas d'oracle d'existence d'appareil | `get_device_capabilities` identique pour inexistant/non autorisé | `v11-tools.test.ts` |
+| Android | HTTPS seul, épinglage TLS, jeton Keystore, accord par capture, aucun service d'accessibilité | `CoreTest.kt`, `ManifestSecurityTest` (non exécuté) |
+| Dépendances | `npm audit` production sans vulnérabilité haute (zod 4) | CI |
+
 ## Limites connues (à lire)
 
-- **Le masquage de pixels dépend du modèle d'analyse** : une zone sensible que le modèle ne signale pas n'est pas noircie. Seuls les `maskRegions` fixes sont déterministes. Sans OCR local, `analyze_screen` n'est pas une garantie : traiter les images comme potentiellement sensibles. Une image n'est partageable qu'après analyse, mais l'analyse n'est pas infaillible.
-- L'image **brute** va, par `analyze_screen`, au fournisseur choisi (cloud ou local) : n'autoriser dans `providers` que des fournisseurs acceptables pour les données visées. Le propriétaire de la capture peut lire l'original (c'est l'agent que l'utilisateur a autorisé).
+- **L'OCR n'est pas une garantie absolue** (voir `docs/OCR-PRIVACY.md`) : un secret illisible pour Tesseract (très petit, stylisé, non latin, QR code…) n'est pas masqué.
+
+- Le masquage combine masques fixes (déterministes), OCR local et zones signalées par le modèle ; seuls les masques fixes sont garantis.
+- L'image va, par `analyze_screen`, au fournisseur choisi (cloud ou local) après assainissement OCR (sauf `privacy.ocr: "off"` ou fournisseur local en échec d'OCR) : n'autoriser dans `providers` que des fournisseurs acceptables pour les données visées. Le propriétaire de la capture peut lire l'original (c'est l'agent que l'utilisateur a autorisé).
 - Le journal d'audit est **détectable en cas d'altération**, pas inviolable : quelqu'un ayant l'accès en écriture peut recalculer toute la chaîne. Pour plus de garanties, exporter vers un stockage en ajout seul.
 - Le jeton d'appareil Android est stocké dans les préférences privées de l'application (pas de Keystore dans ce prototype).
 - Sous X11, l'OS n'impose aucun consentement : seul celui d'Agent Vision protège.
