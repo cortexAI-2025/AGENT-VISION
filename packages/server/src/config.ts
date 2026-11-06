@@ -66,7 +66,7 @@ export const ServerConfig = z.object({
   dataDir: z.string().default(join(homedir(), ".agent-vision", "server")),
   agents: z.array(AgentPolicy),
   devices: z.array(DeviceConfig).default([]),
-  providers: z.record(ProviderConfig).default({}),
+  providers: z.record(z.string(), ProviderConfig).default({}),
   defaultProvider: z.string().optional(),
   retention: z
     .object({
@@ -74,7 +74,7 @@ export const ServerConfig = z.object({
       captureSeconds: z.number().int().min(60).default(3600),
       reportSeconds: z.number().int().min(60).default(86400),
     })
-    .default({}),
+    .prefault({}),
   gateway: z
     .object({
       host: z.string().default("127.0.0.1"),
@@ -83,7 +83,7 @@ export const ServerConfig = z.object({
       /** SHA-256 hex du jeton d'administration (suppression de captures, lecture d'audit). */
       adminTokenSha256: z.string().length(64).optional(),
     })
-    .default({}),
+    .prefault({}),
   observation: z
     .object({
       minIntervalMs: z.number().int().min(10).default(2000),
@@ -97,7 +97,7 @@ export const ServerConfig = z.object({
       /** Distance de Hamming maximale (sur 64 bits) pour considérer deux images comme « la même » pour la déduplication des analyses. */
       phashDedupDistance: z.number().int().min(0).max(32).default(4),
     })
-    .default({}),
+    .prefault({}),
   privacy: z
     .object({
       /** "on" : pipeline OCR avant toute analyse et pour toute image partageable (fail-closed pour les fournisseurs distants). "off" : désactivé explicitement. */
@@ -106,7 +106,7 @@ export const ServerConfig = z.object({
       customRegexes: z.array(z.string()).default([]),
       timeoutMs: z.number().int().min(1000).default(60000),
     })
-    .default({}),
+    .prefault({}),
   /** Délai d'attente d'une capture « push » (consentement humain sur le téléphone). */
   pushTimeoutSeconds: z.number().int().min(5).default(90),
 });

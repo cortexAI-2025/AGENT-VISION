@@ -165,6 +165,6 @@ export const VisualReport = z.object({
   }),
   analysis: AnalysisReport.optional(),
   diff: DiffResult.optional(),
-  technicalContext: z.record(z.string()).default({}),
+  technicalContext: z.record(z.string(), z.string()).default({}),
 });
 export type VisualReport = z.infer<typeof VisualReport>;

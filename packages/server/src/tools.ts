@@ -60,7 +60,7 @@ export const shareVisualReportInput = {
   note: z.string().max(4000).optional(),
   includeImage: z.boolean().optional().describe("Joindre l'image (version masquée). Défaut : oui si la capture a été analysée. Refusé sans analyse préalable."),
   compareWithCaptureId: id.optional().describe("Capture antérieure : inclut le diff dans le rapport."),
-  technicalContext: z.record(z.string().max(2000)).optional().describe("Paires clé/valeur (version de l'app, URL, extrait de log…)."),
+  technicalContext: z.record(z.string(), z.string().max(2000)).optional().describe("Paires clé/valeur (version de l'app, URL, extrait de log…)."),
 };
 
 // ------------------------------------------------------------------ utilitaires
