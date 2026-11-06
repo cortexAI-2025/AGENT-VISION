@@ -1,0 +1,11 @@
+{
+  "deviceId": "win-pc",
+  "tokenSha256": "<généré par: agent-vision-local init>",
+  "host": "127.0.0.1",
+  "port": 7821,
+  "consentMode": "grant",
+  "maskRegions": [{ "x": 0.0, "y": 0.0, "width": 1.0, "height": 0.04 }],
+  "minIntervalMs": 1000,
+  "allowedAgents": ["tester"],
+  "notify": true
+}

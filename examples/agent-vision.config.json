@@ -1,0 +1,46 @@
+{
+  "dataDir": "./.agent-vision/server",
+  "defaultProvider": "claude",
+  "agents": [
+    {
+      "id": "tester",
+      "tokenSha256": "<sortie de: agent-vision-server new-token>",
+      "devices": ["win-pc"],
+      "providers": ["claude"],
+      "shareTo": ["developer"]
+    },
+    {
+      "id": "developer",
+      "tokenSha256": "<autre jeton>",
+      "tools": ["compare_screens"],
+      "devices": ["win-pc"],
+      "providers": ["claude"]
+    }
+  ],
+  "devices": [
+    {
+      "kind": "local-http",
+      "id": "win-pc",
+      "platform": "windows",
+      "url": "http://127.0.0.1:7821",
+      "token": "env:AGENT_VISION_WIN_PC_TOKEN"
+    },
+    {
+      "kind": "push",
+      "id": "pixel",
+      "platform": "android",
+      "tokenSha256": "<empreinte du jeton affiché dans l'appli Android>"
+    }
+  ],
+  "providers": {
+    "claude": { "type": "anthropic", "model": "claude-sonnet-5-5", "apiKey": "env:ANTHROPIC_API_KEY" },
+    "gpt": { "type": "openai", "model": "gpt-4.1", "apiKey": "env:OPENAI_API_KEY" },
+    "gemini": { "type": "gemini", "model": "gemini-2.5-flash", "apiKey": "env:GEMINI_API_KEY" },
+    "grok": { "type": "openai", "model": "grok-4", "baseUrl": "https://api.x.ai/v1", "apiKey": "env:XAI_API_KEY" },
+    "deepseek": { "type": "openai", "model": "deepseek-vl", "baseUrl": "https://api.deepseek.com/v1", "apiKey": "env:DEEPSEEK_API_KEY" },
+    "local": { "type": "openai", "model": "llava", "baseUrl": "http://127.0.0.1:11434/v1", "local": true }
+  },
+  "retention": { "captureSeconds": 3600, "reportSeconds": 86400 },
+  "gateway": { "host": "127.0.0.1", "port": 7822 },
+  "pushTimeoutSeconds": 90
+}

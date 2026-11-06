@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "agent-vision": {
+      "command": "node",
+      "args": ["/chemin/vers/agent-vision/packages/server/dist/cli.js", "start", "--config", "/chemin/vers/agent-vision.config.json"],
+      "env": { "AGENT_VISION_AGENT_TOKEN": "<jeton de l'agent (pas son empreinte)>" }
+    }
+  }
+}
