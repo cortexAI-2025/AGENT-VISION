@@ -25,7 +25,8 @@ const HELP = `agent-vision-local — service de capture local (consentement expl
   init [--device-id ID] [--host H] [--port P] [--tls]   crée la config et affiche le jeton d'appareil (une seule fois)
   start                                                 démarre le service
   grant --agent ID [--minutes 30] [--targets screen,window]   autorise un agent (action locale uniquement)
-  revoke [--agent ID]                                   révoque un agent (ou tous)
+  grant-observation --agent ID [--minutes 15] [--max-captures 60] [--min-interval-ms 5000]   autorise une session d'observation périodique bornée
+  revoke [--agent ID]                                   révoque captures ET observations d'un agent (ou de tous)
   stop                                                  ARRÊT IMMÉDIAT : toute capture est refusée
   resume                                                lève l'arrêt (action locale uniquement)
   status                                                état, consentements actifs
@@ -64,6 +65,13 @@ async function main(): Promise<void> {
       console.log(`Consentement accordé à "${agent}" (${targets.join(",")}) jusqu'à ${g.expiresAt}`);
       return;
     }
+    case "grant-observation": {
+      const agent = flag("agent");
+      if (!agent) throw new Error("--agent required");
+      const g = new ConsentStore(stateDir).grantObservation(agent, Number(flag("minutes", "15")), Number(flag("max-captures", "60")), Number(flag("min-interval-ms", "5000")));
+      console.log(`Observation autorisée pour "${agent}" jusqu'à ${g.expiresAt} (≤ ${g.maxCaptures} captures, intervalle ≥ ${g.minIntervalMs} ms). Arrêt immédiat : \`stop\` ou \`revoke\`.`);
+      return;
+    }
     case "revoke":
       console.log(`${new ConsentStore(stateDir).revoke(flag("agent"))} consentement(s) révoqué(s)`);
       return;
@@ -91,7 +99,7 @@ async function main(): Promise<void> {
         prompter: new SystemPrompter(),
         indicator: new NotifyIndicator(config.notify),
       });
-      const server = createLocalServer({ config, service, consent, backendName: capturer.name });
+      const server = createLocalServer({ config, service, consent, backendName: capturer.name, capturer });
       server.listen(config.port, config.host, () =>
         console.error(`[agent-vision] ${config.tls ? "https" : "http"}://${config.host}:${config.port} — backend ${capturer.name} — consentMode ${config.consentMode}`),
       );

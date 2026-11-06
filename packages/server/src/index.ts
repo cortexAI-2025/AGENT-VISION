@@ -8,3 +8,4 @@ export * from "./mcp.js";
 export * from "./mcp-http.js";
 export * from "./analysis/engine.js";
 export * from "./analysis/providers.js";
+export * from "./observation.js";

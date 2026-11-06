@@ -2,10 +2,13 @@ import { createServer as createHttp, type IncomingMessage, type Server, type Ser
 import { createServer as createHttps } from "node:https";
 import { readFileSync } from "node:fs";
 import { timingSafeEqual } from "node:crypto";
+import { z } from "zod";
 import { type ErrorBody, type ErrorCode, LocalCaptureRequest, sha256Hex } from "@agent-vision/core";
 import type { LocalConfig } from "./config.js";
 import type { ConsentStore } from "./consent.js";
 import { CaptureError, type CaptureService } from "./service.js";
+import { ObservationManager, ObserveStartRequest } from "./observe.js";
+import type { Capturer } from "./backends/types.js";
 
 const STATUS: Record<ErrorCode, number> = {
   unauthorized: 401, consent_required: 403, consent_denied: 403, capture_stopped: 409, screen_locked: 409,
@@ -48,8 +51,11 @@ export function createLocalServer(opts: {
   service: CaptureService;
   consent: ConsentStore;
   backendName: string;
+  capturer?: Capturer;
+  observation?: ObservationManager;
 }): Server {
   const { config, service, consent } = opts;
+  const observation = opts.observation ?? new ObservationManager(consent, service);
   if (!isLoopback(config.host) && !config.tls) {
     throw new Error(`refusing to listen on ${config.host} without TLS (configure "tls" or bind to 127.0.0.1)`);
   }
@@ -60,10 +66,23 @@ export function createLocalServer(opts: {
       if (!m || !tokenMatches(m[1]!, config.tokenSha256)) return sendError(res, "unauthorized", "invalid or missing device token");
 
       if (req.method === "GET" && req.url === "/v1/health") {
-        return send(res, 200, { deviceId: config.deviceId, backend: opts.backendName, stopped: consent.isStopped(), platform: process.platform });
+        return send(res, 200, {
+          deviceId: config.deviceId, backend: opts.backendName, stopped: consent.isStopped(), platform: process.platform,
+          capabilities: {
+            targets: opts.capturer?.targets ?? ["screen"],
+            observation: true,
+            lockedScreenDetection: true,
+            consentMode: config.consentMode,
+            ocrMasking: false,
+            fixedMaskRegions: config.maskRegions.length,
+            tls: !!config.tls,
+            activeObservations: observation.active(),
+          },
+        });
       }
       if (req.method === "POST" && req.url === "/v1/stop") {
         consent.stop(); // l'arrêt peut être demandé à distance ; la reprise, jamais
+        observation.stopAll();
         return send(res, 200, { stopped: true });
       }
       if (req.method === "POST" && req.url === "/v1/capture") {
@@ -77,6 +96,25 @@ export function createLocalServer(opts: {
         const r = LocalCaptureRequest.safeParse(parsed);
         if (!r.success) return sendError(res, "bad_request", r.error.issues.map((i) => i.message).join("; "));
         return send(res, 200, await service.capture(r.data));
+      }
+      if (req.method === "POST" && req.url?.startsWith("/v1/observe/")) {
+        let parsed: any;
+        try {
+          parsed = JSON.parse((await readBody(req)) || "{}");
+        } catch (e) {
+          if (e instanceof CaptureError) throw e;
+          return sendError(res, "bad_request", "invalid JSON");
+        }
+        const action = req.url.slice("/v1/observe/".length);
+        if (action === "start") {
+          const r = ObserveStartRequest.safeParse(parsed);
+          if (!r.success) return sendError(res, "bad_request", r.error.issues.map((i) => i.message).join("; "));
+          return send(res, 200, observation.start(r.data));
+        }
+        const ids = z.object({ sessionId: z.string().min(1).max(64), agentId: z.string().min(1).max(128) }).safeParse(parsed);
+        if (!ids.success) return sendError(res, "bad_request", "sessionId and agentId required");
+        if (action === "capture") return send(res, 200, await observation.capture(ids.data.sessionId, ids.data.agentId));
+        if (action === "stop") return send(res, 200, { stopped: observation.stop(ids.data.sessionId, ids.data.agentId) });
       }
       return send(res, 404, { error: "bad_request", message: "not found" });
     } catch (e) {

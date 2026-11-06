@@ -1,4 +1,4 @@
-package org.agentvision.android
+package org.agentvision.android.service
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -10,12 +10,16 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import org.agentvision.android.core.CaptureRequest
+import org.agentvision.android.data.Settings
+import org.agentvision.android.net.ApiClient
+import org.agentvision.android.net.PollResult
+import org.agentvision.android.ui.CaptureRequestActivity
 import kotlin.concurrent.thread
 
 /**
- * Écoute les demandes de capture. La notification PERMANENTE est l'indicateur visible : tant qu'elle
- * est affichée, l'appareil peut recevoir des demandes — mais RIEN n'est capturé sans acceptation
- * explicite, à chaque demande, dans CaptureRequestActivity (+ dialogue système MediaProjection).
+ * Écoute les demandes de capture. La notification PERMANENTE est l'indicateur visible. Rien n'est capturé sans
+ * acceptation explicite à chaque demande (CaptureRequestActivity + boîte de dialogue système MediaProjection).
  */
 class PollService : Service() {
     @Volatile private var running = false
@@ -25,38 +29,53 @@ class PollService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            running = false
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            shutdown()
             return START_NOT_STICKY
         }
         ensureChannels()
         val stop = PendingIntent.getService(this, 0, Intent(this, PollService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
         val n: Notification = NotificationCompat.Builder(this, CH_ONGOING)
             .setContentTitle("Agent Vision actif")
-            .setContentText("Des agents autorisés peuvent demander une capture — vous devrez accepter chaque demande.")
+            .setContentText("Les agents autorisés peuvent demander une capture. Chaque demande requiert votre accord.")
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setOngoing(true)
             .addAction(android.R.drawable.ic_delete, "Arrêter", stop)
             .build()
         startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        AppState.listening = true
         if (!running) {
             running = true
             thread(name = "av-poll") { loop() }
         }
-        return START_STICKY
+        return START_NOT_STICKY
+    }
+
+    /** Android 15 : les services dataSync ont une durée maximale ; on s'arrête proprement. */
+    override fun onTimeout(startId: Int, fgsType: Int) = shutdown()
+
+    private fun shutdown() {
+        running = false
+        AppState.listening = false
+        AppState.connection = Connection.UNKNOWN
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun loop() {
         val settings = Settings(this)
         val api = ApiClient(settings)
         while (running) {
-            try {
-                for (r in api.poll()) {
-                    if (notified.add(r.requestId)) askUser(r)
+            when (val r = api.poll()) {
+                is PollResult.Ok -> {
+                    AppState.connection = Connection.CONNECTED
+                    AppState.connectionDetail = null
+                    if (settings.deviceId != r.deviceId && r.deviceId.isNotEmpty()) settings.deviceId = r.deviceId
+                    for (req in r.requests) if (notified.add(req.requestId)) askUser(req)
                 }
-            } catch (_: Exception) { /* réseau indisponible : on réessaie */ }
-            Thread.sleep(3_000)
+                is PollResult.Unauthorized -> { AppState.connection = Connection.UNAUTHORIZED; AppState.connectionDetail = "Jeton refusé (appairage révoqué ?)" }
+                is PollResult.Error -> { AppState.connection = Connection.ERROR; AppState.connectionDetail = r.message }
+            }
+            try { Thread.sleep(3_000) } catch (_: InterruptedException) { break }
         }
     }
 
@@ -71,8 +90,7 @@ class PollService : Service() {
             .setContentText("L'agent « ${r.agentId} » demande une capture${r.reason?.let { " : $it" } ?: ""}")
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setContentIntent(pi).setFullScreenIntent(pi, true).setAutoCancel(true)
+            .setContentIntent(pi).setAutoCancel(true)
             .build()
         getSystemService(NotificationManager::class.java).notify(r.requestId.hashCode(), n)
     }
@@ -83,7 +101,7 @@ class PollService : Service() {
         nm.createNotificationChannel(NotificationChannel(CH_REQUEST, "Demandes de capture", NotificationManager.IMPORTANCE_HIGH))
     }
 
-    override fun onDestroy() { running = false; super.onDestroy() }
+    override fun onDestroy() { running = false; AppState.listening = false; super.onDestroy() }
 
     companion object {
         const val ACTION_STOP = "org.agentvision.STOP"

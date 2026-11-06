@@ -59,6 +59,7 @@ export function parseWindowsOutput(stdout: string): { locked: boolean; title?: s
 
 export class WindowsCapturer implements Capturer {
   readonly name = "windows-gdi";
+  readonly targets: CaptureTarget[] = ["screen", "window"];
   private lockedCache = false;
   constructor(private readonly exec: Exec = defaultExec) {}
 

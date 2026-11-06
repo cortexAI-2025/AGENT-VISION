@@ -11,11 +11,13 @@ async function captured(env = makeEnv()) {
 }
 
 describe("serveur MCP — exposition", () => {
-  it("expose exactement les quatre outils", async () => {
+  it("expose les quatre outils V1 + les sept outils V1.1", async () => {
     const env = makeEnv();
     const c = await env.client("tester");
     const names = (await c.listTools()).tools.map((t) => t.name).sort();
-    expect(names).toEqual(["analyze_screen", "capture_screen", "compare_screens", "share_visual_report"]);
+    expect(names).toEqual(["analyze_screen", "analyze_screen_region", "capture_screen", "compare_screens", "get_device_capabilities", "get_observation_status", "get_visual_changes", "list_available_devices", "share_visual_report", "start_observation", "stop_observation"]);
+    // compatibilité V1 : les quatre outils d'origine sont toujours là
+    for (const t of ["capture_screen", "analyze_screen", "compare_screens", "share_visual_report"]) expect(names).toContain(t);
   });
 });
 

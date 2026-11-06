@@ -5,6 +5,7 @@ import type { ServerConfig } from "./config.js";
 import { DeviceRegistry } from "./devices.js";
 import { createProvider, type VisionProvider } from "./analysis/providers.js";
 import { Store } from "./store.js";
+import { ObservationManager } from "./observation.js";
 
 export interface AppContext {
   config: ServerConfig;
@@ -14,6 +15,7 @@ export interface AppContext {
   devices: DeviceRegistry;
   providers: Map<string, VisionProvider>;
   sanitizer: ImageSanitizer;
+  observations: ObservationManager;
 }
 
 export function createAppContext(config: ServerConfig, overrides: Partial<Pick<AppContext, "devices" | "providers" | "sanitizer">> = {}): AppContext {
@@ -22,7 +24,7 @@ export function createAppContext(config: ServerConfig, overrides: Partial<Pick<A
   if (!overrides.providers) {
     for (const [name, cfg] of Object.entries(config.providers)) providers.set(name, createProvider(name, cfg));
   }
-  return {
+  const ctx: AppContext = {
     config,
     store: new Store(config.dataDir),
     audit: new AuditLog(auditPath),
@@ -35,5 +37,8 @@ export function createAppContext(config: ServerConfig, overrides: Partial<Pick<A
         custom: buildCustomPatterns({ literals: config.privacy.customLiterals, regexes: config.privacy.customRegexes }),
         timeoutMs: config.privacy.timeoutMs,
       }),
+    observations: undefined as unknown as ObservationManager,
   };
+  ctx.observations = new ObservationManager(ctx);
+  return ctx;
 }

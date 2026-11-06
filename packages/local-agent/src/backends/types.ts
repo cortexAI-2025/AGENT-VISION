@@ -7,6 +7,8 @@ export interface RawCapture {
 
 export interface Capturer {
   readonly name: string;
+  /** Cibles réellement prises en charge. */
+  readonly targets: CaptureTarget[];
   isAvailable(): Promise<boolean>;
   /** true si la session est verrouillée (on refuse alors de capturer). */
   isLocked(): Promise<boolean>;

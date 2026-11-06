@@ -8,3 +8,4 @@ export * from "./backends/index.js";
 export { buildWindowsScript, parseWindowsOutput } from "./backends/windows.js";
 export { parsePortalResponse } from "./backends/wayland.js";
 export { parseActiveWindow, parseWmName } from "./backends/x11.js";
+export * from "./observe.js";

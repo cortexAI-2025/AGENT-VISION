@@ -17,6 +17,7 @@ export function parseWmName(xpropOut: string): string | undefined {
 /** Linux / X11 : maim, ImageMagick `import` ou scrot (premier disponible). */
 export class X11Capturer implements Capturer {
   name = "x11";
+  readonly targets: CaptureTarget[] = ["screen", "window"];
   private tool?: "maim" | "import" | "scrot";
   constructor(private readonly exec: Exec = defaultExec, private readonly env: NodeJS.ProcessEnv = process.env) {}
 

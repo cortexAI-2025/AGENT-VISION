@@ -251,7 +251,7 @@ describe("transport MCP HTTP authentifié", () => {
 
     const c = new Client({ name: "t", version: "0" });
     await c.connect(new StreamableHTTPClientTransport(url, { requestInit: { headers: { authorization: `Bearer ${T.tester}` } } }));
-    expect((await c.listTools()).tools).toHaveLength(4);
+    expect((await c.listTools()).tools).toHaveLength(11);
     const r: any = await c.callTool({ name: "capture_screen", arguments: { deviceId: "pc1" } });
     expect(JSON.parse(r.content[0].text).captureId).toMatch(/^cap_/);
     await c.close();
@@ -270,7 +270,7 @@ describe("transport stdio (processus réel)", () => {
 
     const c = new Client({ name: "t", version: "0" });
     await c.connect(new StdioClientTransport({ command: process.execPath, args: [cli, "start", "--config", file], env: { ...process.env, AGENT_VISION_AGENT_TOKEN: T.tester } as Record<string, string> }));
-    expect((await c.listTools()).tools.map((t) => t.name).sort()).toEqual(["analyze_screen", "capture_screen", "compare_screens", "share_visual_report"]);
+    expect((await c.listTools()).tools.map((t) => t.name).sort()).toEqual(["analyze_screen", "analyze_screen_region", "capture_screen", "compare_screens", "get_device_capabilities", "get_observation_status", "get_visual_changes", "list_available_devices", "share_visual_report", "start_observation", "stop_observation"]);
     await c.close();
   });
 });

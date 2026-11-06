@@ -62,7 +62,64 @@ export function isUniformFrame(buf: Buffer, tolerance = 2): boolean {
   return true;
 }
 
+/** Recadre un PNG sur une région en pixels (bornée à l'image). */
+export function cropPng(buf: Buffer, r: PixelRegion): Buffer {
+  const src = decodePng(buf);
+  const x = Math.min(src.width - 1, Math.max(0, r.x));
+  const y = Math.min(src.height - 1, Math.max(0, r.y));
+  const w = Math.max(1, Math.min(src.width - x, r.width));
+  const h = Math.max(1, Math.min(src.height - y, r.height));
+  const out = new PNG({ width: w, height: h });
+  for (let j = 0; j < h; j++) {
+    const from = ((y + j) * src.width + x) * 4;
+    src.data.copy(out.data, j * w * 4, from, from + w * 4);
+  }
+  return encodePng(out);
+}
+
+/** Hash perceptuel « dHash » 64 bits (hex) : robuste au bruit de compression et aux micro-variations. */
+export function perceptualHash(buf: Buffer): string {
+  const p = decodePng(buf);
+  const W = 9;
+  const H = 8;
+  const gray: number[] = [];
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      // moyenne sur la cellule correspondante
+      const x0 = Math.floor((i * p.width) / W);
+      const x1 = Math.max(x0 + 1, Math.floor(((i + 1) * p.width) / W));
+      const y0 = Math.floor((j * p.height) / H);
+      const y1 = Math.max(y0 + 1, Math.floor(((j + 1) * p.height) / H));
+      let sum = 0;
+      let n = 0;
+      for (let y = y0; y < y1; y += Math.max(1, (y1 - y0) >> 3)) {
+        for (let x = x0; x < x1; x += Math.max(1, (x1 - x0) >> 3)) {
+          const k = (y * p.width + x) * 4;
+          sum += 0.299 * p.data[k]! + 0.587 * p.data[k + 1]! + 0.114 * p.data[k + 2]!;
+          n++;
+        }
+      }
+      gray.push(sum / n);
+    }
+  }
+  let bits = 0n;
+  for (let j = 0; j < H; j++) for (let i = 0; i < 8; i++) bits = (bits << 1n) | (gray[j * W + i]! > gray[j * W + i + 1]! ? 1n : 0n);
+  return bits.toString(16).padStart(16, "0");
+}
+
+export function hammingHex(a: string, b: string): number {
+  let x = BigInt("0x" + a) ^ BigInt("0x" + b);
+  let n = 0;
+  while (x) {
+    n += Number(x & 1n);
+    x >>= 1n;
+  }
+  return n;
+}
+
 export interface DiffOptions {
+  /** "image" : superposition sur l'image (peut révéler son contenu) ; "none" : différences seules sur fond noir. */
+  overlayBase?: "image" | "none";
   /** Écart max par canal (0..255) en dessous duquel un pixel est considéré identique. */
   pixelThreshold?: number;
   /** Taille de la grille servant à regrouper les différences en régions. */
@@ -116,9 +173,10 @@ export function diffPng(
         overlay.data[i + 2] = 0;
         overlay.data[i + 3] = 255;
       } else {
-        overlay.data[i] = b.data[i]! >> 1;
-        overlay.data[i + 1] = b.data[i + 1]! >> 1;
-        overlay.data[i + 2] = b.data[i + 2]! >> 1;
+        const base = opts.overlayBase === "none" ? 0 : 1;
+        overlay.data[i] = base ? b.data[i]! >> 1 : 0;
+        overlay.data[i + 1] = base ? b.data[i + 1]! >> 1 : 0;
+        overlay.data[i + 2] = base ? b.data[i + 2]! >> 1 : 0;
         overlay.data[i + 3] = 255;
       }
     }

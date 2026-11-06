@@ -4,14 +4,23 @@ import { join } from "node:path";
 import { z } from "zod";
 import { sha256Hex } from "@agent-vision/core";
 
-export const ToolName = z.enum(["capture_screen", "analyze_screen", "compare_screens", "share_visual_report"]);
+export const ToolName = z.enum([
+  "capture_screen", "analyze_screen", "compare_screens", "share_visual_report",
+  "list_available_devices", "get_device_capabilities", "analyze_screen_region",
+  "start_observation", "stop_observation", "get_observation_status", "get_visual_changes",
+]);
 export type ToolName = z.infer<typeof ToolName>;
 
 export const AgentPolicy = z.object({
   id: z.string().min(1),
   /** SHA-256 hex du jeton de l'agent. Générer avec `agent-vision-server hash-token`. */
   tokenSha256: z.string().length(64),
-  tools: z.array(ToolName).default(["capture_screen", "analyze_screen", "compare_screens", "share_visual_report"]),
+  /** Par défaut : les 4 outils V1 + lecture seule (appareils, régions). Les outils d'observation doivent être listés explicitement. */
+  tools: z
+    .array(ToolName)
+    .default(["capture_screen", "analyze_screen", "compare_screens", "share_visual_report", "list_available_devices", "get_device_capabilities", "analyze_screen_region"]),
+  /** Autorise cet agent à relire l'image BRUTE de ses propres captures. Par défaut non : seule la version assainie est accessible. */
+  allowRawImages: z.boolean().default(false),
   /** Appareils que cet agent peut capturer. Vide = aucun. */
   devices: z.array(z.string()).default([]),
   /** Fournisseurs d'analyse autorisés (l'image quitte la machine vers ce fournisseur). */
@@ -73,6 +82,20 @@ export const ServerConfig = z.object({
       tls: z.object({ certFile: z.string(), keyFile: z.string() }).optional(),
       /** SHA-256 hex du jeton d'administration (suppression de captures, lecture d'audit). */
       adminTokenSha256: z.string().length(64).optional(),
+    })
+    .default({}),
+  observation: z
+    .object({
+      minIntervalMs: z.number().int().min(10).default(2000),
+      maxDurationSeconds: z.number().int().min(1).default(3600),
+      maxCaptures: z.number().int().min(1).default(500),
+      maxSessionsPerAgent: z.number().int().min(1).default(1),
+      maxSessionsTotal: z.number().int().min(1).default(4),
+      maxAnalysesPerSession: z.number().int().min(0).default(20),
+      minAnalysisIntervalMs: z.number().int().min(0).default(10000),
+      keepCaptures: z.number().int().min(2).default(20),
+      /** Distance de Hamming maximale (sur 64 bits) pour considérer deux images comme « la même » pour la déduplication des analyses. */
+      phashDedupDistance: z.number().int().min(0).max(32).default(4),
     })
     .default({}),
   privacy: z
