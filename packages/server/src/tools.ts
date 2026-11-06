@@ -17,6 +17,7 @@ import type { VisionProvider } from "./analysis/providers.js";
 import type { AppContext } from "./app.js";
 import type { AgentPolicy, ToolName } from "./config.js";
 import { DeviceError } from "./devices.js";
+import { SanitizeError, type SanitizeResult } from "@agent-vision/privacy";
 import type { CaptureMeta } from "./store.js";
 
 // ------------------------------------------------------------------ schémas d'entrée (formes brutes zod)
@@ -111,7 +112,33 @@ function pickProvider(ctx: AppContext, agent: AgentPolicy, name?: string): Visio
   return p;
 }
 
+/**
+ * Pipeline de sécurité visuelle (fail-closed) : renvoie l'image à transmettre au fournisseur.
+ * - fournisseur distant : si l'OCR/la vérification échoue, rien n'est transmis (SanitizeFailure).
+ * - fournisseur local : en cas d'échec, l'original reste utilisable localement mais aucune version « partageable » n'existe.
+ */
+export class SanitizeFailure extends Error {}
+
+export interface Prepared {
+  png: Buffer;
+  sanitized?: SanitizeResult;
+  status: "verified" | "off" | "skipped_local_provider";
+}
+
+export async function prepareForProvider(ctx: AppContext, provider: VisionProvider, png: Buffer): Promise<Prepared> {
+  if (ctx.config.privacy.ocr === "off") return { png, status: "off" };
+  try {
+    const r = await ctx.sanitizer.sanitize(png);
+    return { png: r.png, sanitized: r, status: "verified" };
+  } catch (e) {
+    if (provider.local) return { png, status: "skipped_local_provider" };
+    const reason = e instanceof SanitizeError ? e.reason : "error";
+    throw new SanitizeFailure(`image not transmitted: local sanitization failed (${reason})`);
+  }
+}
+
 function mapErr(e: unknown): Result | undefined {
+  if (e instanceof SanitizeFailure) return fail("sanitization_failed", e.message);
   if (e instanceof Forbidden) return fail("forbidden", e.message);
   if (e instanceof NotFound) return fail("not_found", e.message);
   return undefined;
@@ -159,9 +186,11 @@ export async function analyzeScreen(ctx: AppContext, agent: AgentPolicy, a: z.in
       const meta = ownMeta(ctx, agent, a.captureId, true);
       const provider = pickProvider(ctx, agent, a.provider);
       const png = readImage(ctx, agent, meta);
-      const { report, redactedPng } = await analyzeCapture({ provider, captureId: meta.captureId, png, context: a.context, expectation: a.expectation });
-      // invariant : une version « masquée » n'existe que si une analyse a eu lieu
-      ctx.store.saveRedacted(meta.captureId, redactedPng);
+      const prep = await prepareForProvider(ctx, provider, png);
+      const { report, redactedPng } = await analyzeCapture({ provider, captureId: meta.captureId, png: prep.png, context: a.context, expectation: a.expectation });
+      report.privacy.ocr = { status: prep.status, engine: prep.sanitized?.engine, regionsMasked: prep.sanitized?.regions.length ?? 0, kinds: prep.sanitized?.kinds ?? [] };
+      // invariant : une version « masquée » n'existe que si l'image a passé le pipeline (OCR vérifié ou désactivé explicitement)
+      if (prep.status !== "skipped_local_provider") ctx.store.saveRedacted(meta.captureId, redactedPng);
       ctx.store.saveAnalysis(report);
       if (a.deleteAfter) ctx.store.deleteCapture(meta.captureId);
       return { content: [{ type: "text", text: JSON.stringify(report, null, 2) }] };
@@ -185,7 +214,9 @@ export async function compareScreens(ctx: AppContext, agent: AgentPolicy, a: z.i
       if (a.describe) {
         if (result.verdict === "incomparable") return fail("incomparable", "captures have different dimensions; semantic description skipped");
         const provider = pickProvider(ctx, agent, a.provider);
-        description = await describeChange({ provider, before, after, diff: result, context: a.context, expectation: a.expectation });
+        const pb = await prepareForProvider(ctx, provider, before);
+        const pa = await prepareForProvider(ctx, provider, after);
+        description = await describeChange({ provider, before: pb.png, after: pa.png, diff: result, context: a.context, expectation: a.expectation });
       }
       const out: Result = { content: [{ type: "text", text: JSON.stringify({ before: a.beforeCaptureId, after: a.afterCaptureId, diff: result, description }, null, 2) }] };
       if (a.includeOverlay && overlay) out.content.push({ type: "image", data: overlay.toString("base64"), mimeType: "image/png" });

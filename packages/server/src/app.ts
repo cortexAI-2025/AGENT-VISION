@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { AuditLog } from "@agent-vision/core";
+import { AuditLog, buildCustomPatterns } from "@agent-vision/core";
+import { OcrSanitizer, TesseractEngine, type ImageSanitizer } from "@agent-vision/privacy";
 import type { ServerConfig } from "./config.js";
 import { DeviceRegistry } from "./devices.js";
 import { createProvider, type VisionProvider } from "./analysis/providers.js";
@@ -12,9 +13,10 @@ export interface AppContext {
   auditPath: string;
   devices: DeviceRegistry;
   providers: Map<string, VisionProvider>;
+  sanitizer: ImageSanitizer;
 }
 
-export function createAppContext(config: ServerConfig, overrides: Partial<Pick<AppContext, "devices" | "providers">> = {}): AppContext {
+export function createAppContext(config: ServerConfig, overrides: Partial<Pick<AppContext, "devices" | "providers" | "sanitizer">> = {}): AppContext {
   const auditPath = join(config.dataDir, "audit.jsonl");
   const providers = overrides.providers ?? new Map<string, VisionProvider>();
   if (!overrides.providers) {
@@ -27,5 +29,11 @@ export function createAppContext(config: ServerConfig, overrides: Partial<Pick<A
     auditPath,
     devices: overrides.devices ?? new DeviceRegistry(config.devices, config.pushTimeoutSeconds),
     providers,
+    sanitizer:
+      overrides.sanitizer ??
+      new OcrSanitizer(new TesseractEngine(), {
+        custom: buildCustomPatterns({ literals: config.privacy.customLiterals, regexes: config.privacy.customRegexes }),
+        timeoutMs: config.privacy.timeoutMs,
+      }),
   };
 }

@@ -7,7 +7,7 @@
   "workspaces": ["packages/*"],
   "engines": { "node": ">=20" },
   "scripts": {
-    "build": "npm run build -w @agent-vision/core && npm run build -w @agent-vision/server -w @agent-vision/local-agent",
+    "build": "npm run build -w @agent-vision/core && npm run build -w @agent-vision/privacy && npm run build -w @agent-vision/server -w @agent-vision/local-agent",
     "typecheck": "npm run build",
     "test": "vitest run",
     "test:x11": "AGENT_VISION_X11_TEST=1 xvfb-run -a vitest run packages/local-agent/test/x11.integration.test.ts"

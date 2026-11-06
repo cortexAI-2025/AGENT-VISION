@@ -75,6 +75,15 @@ export const ServerConfig = z.object({
       adminTokenSha256: z.string().length(64).optional(),
     })
     .default({}),
+  privacy: z
+    .object({
+      /** "on" : pipeline OCR avant toute analyse et pour toute image partageable (fail-closed pour les fournisseurs distants). "off" : désactivé explicitement. */
+      ocr: z.enum(["on", "off"]).default("on"),
+      customLiterals: z.array(z.string().min(1)).default([]),
+      customRegexes: z.array(z.string()).default([]),
+      timeoutMs: z.number().int().min(1000).default(60000),
+    })
+    .default({}),
   /** Délai d'attente d'une capture « push » (consentement humain sur le téléphone). */
   pushTimeoutSeconds: z.number().int().min(5).default(90),
 });

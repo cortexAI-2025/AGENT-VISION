@@ -11,6 +11,10 @@ import type { CaptureRequest, DeviceClient } from "../src/devices.js";
 import { DeviceRegistry } from "../src/devices.js";
 import { MockProvider, type VisionProvider } from "../src/analysis/providers.js";
 import { buildMcpServer } from "../src/mcp.js";
+import { OcrSanitizer, type OcrEngine } from "@agent-vision/privacy";
+
+/** OCR simulé rapide : les tests d'outils n'ont pas besoin du vrai Tesseract (couvert dans packages/privacy). */
+export const noopOcr: OcrEngine = { name: "noop", recognize: async () => [] };
 
 export function png(w: number, h: number, fn: (x: number, y: number) => [number, number, number]): Buffer {
   const p = new PNG({ width: w, height: h });
@@ -64,13 +68,13 @@ export interface TestEnv {
   call: (agentId: string, tool: string, args: Record<string, unknown>) => Promise<{ isError?: boolean; json: any; content: any[] }>;
 }
 
-export function makeEnv(opts: { respond?: (i: any) => string; config?: Record<string, unknown> } = {}): TestEnv {
+export function makeEnv(opts: { respond?: (i: any) => string; config?: Record<string, unknown>; ocr?: OcrEngine; remote?: boolean } = {}): TestEnv {
   const config = makeConfig(opts.config);
   const device = new FakeDevice("pc1");
-  const provider = new MockProvider("mock-1", opts.respond ?? (() => JSON.stringify(defaultAnalysis)));
+  const provider = new MockProvider("mock-1", opts.respond ?? (() => JSON.stringify(defaultAnalysis)), !opts.remote);
   const registry = new DeviceRegistry([], 30);
   registry.set(device);
-  const ctx = createAppContext(config, { devices: registry, providers: new Map<string, VisionProvider>([["mock", provider]]) });
+  const ctx = createAppContext(config, { devices: registry, providers: new Map<string, VisionProvider>([["mock", provider]]), sanitizer: new OcrSanitizer(opts.ocr ?? noopOcr) });
   const clients = new Map<string, Client>();
   const client = async (agentId: string) => {
     if (clients.has(agentId)) return clients.get(agentId)!;
