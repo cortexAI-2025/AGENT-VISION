@@ -352,7 +352,7 @@ export const analyzeRegionInput = {
 export const startObservationInput = {
   deviceId: z.string().min(1).max(128),
   target: CaptureTarget.default("screen"),
-  intervalSeconds: z.number().min(0.25).max(3600).default(5),
+  intervalSeconds: z.number().min(0.1).max(3600).default(5),
   maxDurationSeconds: z.number().int().min(1).max(8 * 3600).default(300),
   maxCaptures: z.number().int().min(1).max(2000).default(60),
   changeThreshold: z.number().min(0).max(1).default(0.01).describe("Part de pixels modifiés (0..1) au-delà de laquelle un changement est retenu."),
@@ -379,7 +379,7 @@ export async function listAvailableDevices(ctx: AppContext, agent: AgentPolicy):
 export async function getDeviceCapabilities(ctx: AppContext, agent: AgentPolicy, a: { deviceId: string }): Promise<Result> {
   return guarded(ctx, agent, "get_device_capabilities", { deviceId: a.deviceId }, async () => {
     const dev = agent.devices.includes(a.deviceId) ? ctx.devices.get(a.deviceId) : undefined;
-    if (!dev) return fail("not_found", `unknown device "${a.deviceId}"`); // même réponse : pas d'oracle d'existence
+    if (!dev) return fail("not_found", "unknown or unauthorized device"); // réponse identique : pas d'oracle d'existence
     return asJson(await dev.capabilities());
   });
 }

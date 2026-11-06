@@ -8,7 +8,7 @@ import { LocalCaptureResponse, sha256Hex } from "@agent-vision/core";
 import { createAppContext, type AppContext } from "../src/app.js";
 import { ServerConfig } from "../src/config.js";
 import type { CaptureRequest, DeviceClient } from "../src/devices.js";
-import { DeviceRegistry } from "../src/devices.js";
+import { DeviceError, DeviceRegistry } from "../src/devices.js";
 import { MockProvider, type VisionProvider } from "../src/analysis/providers.js";
 import { buildMcpServer } from "../src/mcp.js";
 import { OcrSanitizer, type OcrEngine } from "@agent-vision/privacy";
@@ -31,6 +31,27 @@ export const screenB = () => png(200, 100, (x, y) => (x > 100 && y > 50 ? [255, 
 
 export class FakeDevice implements DeviceClient {
   platform = "test-os";
+  // --- observation simulée
+  frames: Buffer[] = [];
+  frameIdx = 0;
+  observeConsent = true;
+  observeCalls = { start: 0, capture: 0, stop: 0 };
+  captureError?: Error;
+  async capabilities() {
+    return { deviceId: this.id, kind: "local-http" as const, platform: this.platform, backend: "fake", targets: ["screen" as const, "window" as const], observation: true, perCaptureUserConsent: false, lockedScreenDetection: true, ocrMaskingOnDevice: false, tls: false, online: true };
+  }
+  async observeStart(r: any) {
+    this.observeCalls.start++;
+    if (!this.observeConsent) throw new DeviceError("consent_required", "no active observation consent");
+    return { sessionId: `obs_local_${this.observeCalls.start}`, expiresAt: new Date(Date.now() + r.maxDurationSec * 1000).toISOString(), maxCaptures: r.maxCaptures, intervalMs: r.intervalMs };
+  }
+  async observeCapture(_s: string, agentId: string) {
+    this.observeCalls.capture++;
+    if (this.captureError) throw this.captureError;
+    const b = this.frames[Math.min(this.frameIdx++, this.frames.length - 1)] ?? screenA();
+    return { deviceId: this.id, capturedAt: new Date().toISOString(), target: "screen" as const, backend: "fake", width: 200, height: 100, sha256: sha256Hex(b), masksApplied: 0, pngBase64: b.toString("base64") };
+  }
+  async observeStop() { this.observeCalls.stop++; }
   next: () => Buffer = screenA;
   requests: CaptureRequest[] = [];
   error?: Error;
@@ -49,9 +70,10 @@ export function makeConfig(over: Record<string, unknown> = {}) {
   return ServerConfig.parse({
     dataDir: mkdtempSync(join(tmpdir(), "av-server-")),
     agents: [
-      { id: "tester", tokenSha256: sha256Hex(T.tester), devices: ["pc1"], providers: ["mock"], shareTo: ["dev"] },
+      { id: "tester", tokenSha256: sha256Hex(T.tester), devices: ["pc1"], providers: ["mock"], shareTo: ["dev"], tools: ["capture_screen", "analyze_screen", "compare_screens", "share_visual_report", "list_available_devices", "get_device_capabilities", "analyze_screen_region", "start_observation", "stop_observation", "get_observation_status", "get_visual_changes"] },
+      { id: "raw", tokenSha256: sha256Hex("tok-raw"), devices: ["pc1"], providers: ["mock"], allowRawImages: true },
       { id: "dev", tokenSha256: sha256Hex(T.dev), tools: ["compare_screens"], providers: ["mock"] },
-      { id: "intruder", tokenSha256: sha256Hex(T.intruder), tools: ["capture_screen", "analyze_screen", "compare_screens", "share_visual_report"], devices: [], providers: [] },
+      { id: "intruder", tokenSha256: sha256Hex(T.intruder), tools: ["capture_screen", "analyze_screen", "compare_screens", "share_visual_report", "list_available_devices", "get_device_capabilities", "analyze_screen_region", "start_observation", "stop_observation", "get_observation_status", "get_visual_changes"], devices: [], providers: [] },
     ],
     devices: [],
     providers: {},
@@ -93,6 +115,15 @@ export function makeEnv(opts: { respond?: (i: any) => string; config?: Record<st
     return { isError: r.isError, json: text ? JSON.parse(text) : undefined, content: r.content };
   };
   return { ctx, device, provider, client, call };
+}
+
+/** Petite variation (4 pixels) : sous le seuil de changement par défaut. */
+export const screenTiny = () => png(200, 100, (x, y) => (x < 2 && y < 2 ? [255, 255, 255] : [x, y * 2, 120]));
+export const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+export async function until(fn: () => boolean | Promise<boolean>, ms = 5000) {
+  const t = Date.now();
+  while (Date.now() - t < ms) { if (await fn()) return; await wait(20); }
+  throw new Error("timeout waiting for condition");
 }
 
 export const defaultAnalysis = {
