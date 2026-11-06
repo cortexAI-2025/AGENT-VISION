@@ -13,6 +13,17 @@ describe("Windows (unitaire — non exécuté sur Windows ici)", () => {
   it("refuse une cible inattendue (pas d'injection)", () => {
     expect(() => buildWindowsScript("x'; calc; '" as never)).toThrow();
   });
+  it("le script gère DPI per-monitor, session verrouillée, fenêtre minimisée, libération GDI, aucun fichier temporaire", () => {
+    const sc = buildWindowsScript("window");
+    expect(sc).toContain("SetProcessDpiAwarenessContext");
+    expect(sc).toContain("OpenInputDesktop");
+    expect(sc).toContain("LogonUI");
+    expect(sc).toContain("IsIconic");
+    expect(sc).toContain("PrintWindow");
+    expect(sc).toMatch(/\$bmp\.Dispose\(\)/);
+    expect(sc).not.toMatch(/Out-File|\[IO\.File\]|\.Save\(\$[a-z]*[Pp]ath|GetTempPath/);
+    expect(sc).not.toMatch(/SendKeys|mouse_event|SendInput|keybd_event|SetCursorPos/); // perception seule
+  });
   it("encode en UTF-16LE base64", () => {
     expect(Buffer.from(encodePowerShell("ab"), "base64").toString("utf16le")).toBe("ab");
   });
@@ -39,7 +50,7 @@ describe("parseurs Linux", () => {
     expect(parseWmName('_NET_WM_NAME(UTF8_STRING) = "Terminal \\"x\\""')).toBe('Terminal "x"');
   });
   it("X11 : cible window sans fenêtre active → erreur claire", async () => {
-    const exec: Exec = async (cmd, args) => {
+    const exec: Exec = async (cmd) => {
       if (cmd === "sh") return { stdout: Buffer.from("/usr/bin/maim"), stderr: "" };
       if (cmd === "xprop") throw new Error("no xprop");
       return { stdout: Buffer.alloc(0), stderr: "" };

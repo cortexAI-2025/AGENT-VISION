@@ -1,14 +1,23 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
 jobs:
   node:
+    name: TypeScript (lint, typecheck, tests, MCP, X11)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: sudo apt-get update && sudo apt-get install -y xvfb imagemagick
+        with: { node-version: 22, cache: npm }
+      - name: Dépendances système (Xvfb, fenêtre X11, ImageMagick pour les fixtures X11)
+        run: sudo apt-get update && sudo apt-get install -y xvfb imagemagick x11-utils openbox xterm
       - run: npm ci
-      - run: npm run build
-      - run: npm test
-      - run: npm run test:x11
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Tests (unitaires, MCP en mémoire, HTTP, OCR, observation, sécurité)
+        run: npm test
+      - name: Tests X11 réels sous Xvfb (écran, fenêtre active, refus)
+        run: npm run test:x11
+      - name: Vérification des dépendances (production)
+        run: npm run audit:deps

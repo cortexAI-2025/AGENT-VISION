@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { PNG } from "pngjs";
 import { AuditLog } from "@agent-vision/core";
 import { DeviceError } from "../src/devices.js";
-import { defaultAnalysis, makeEnv, png, screenA, screenB } from "./env.js";
+import { defaultAnalysis, makeEnv, png, screenB } from "./env.js";
 
 async function captured(env = makeEnv()) {
   const r = await env.call("tester", "capture_screen", { deviceId: "pc1", reason: "test" });

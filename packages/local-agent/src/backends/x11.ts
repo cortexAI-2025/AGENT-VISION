@@ -51,7 +51,7 @@ export class X11Capturer implements Capturer {
       if (!id || id === "0x0") return undefined;
       let title: string | undefined;
       try {
-        title = parseWmName((await this.exec("xprop", ["-id", id, "_NET_WM_NAME"], { timeoutMs: 3000 })).stdout.toString());
+        title = parseWmName((await this.exec("xprop", ["-id", id, "_NET_WM_NAME", "WM_NAME"], { timeoutMs: 3000 })).stdout.toString());
       } catch {
         /* titre facultatif */
       }

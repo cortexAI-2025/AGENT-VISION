@@ -14,7 +14,11 @@ export const defaultExec: Exec = (cmd, args, opts = {}) =>
       args,
       { encoding: "buffer", timeout: opts.timeoutMs ?? 15000, maxBuffer: 256 * 1024 * 1024, env: opts.env ?? process.env, windowsHide: true },
       (err, stdout, stderr) => {
-        if (err) reject(Object.assign(err, { stderr: stderr.toString() }));
+        if (err) {
+          // message concis : jamais la ligne de commande complète (PowerShell encodé, chemins) ni le contenu de stdout
+          const code = (err as NodeJS.ErrnoException & { killed?: boolean }).killed ? "timeout" : (err as NodeJS.ErrnoException).code;
+          reject(Object.assign(new Error(`${cmd} failed (${code ?? "error"}): ${stderr.toString().trim().slice(0, 300)}`), { stderr: stderr.toString() }));
+        }
         else resolve({ stdout, stderr: stderr.toString() });
       },
     );

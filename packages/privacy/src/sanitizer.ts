@@ -71,7 +71,6 @@ export function findSensitiveWords(words: OcrWord[], opts: SanitizeOptions = {})
   for (const lineWords of byLine.values()) {
     let text = "";
     const spans = lineWords.map((w) => {
-      const start = text.length;
       text += (text ? " " : "") + w.text;
       return { w, start: text.length - w.text.length, end: text.length };
     });

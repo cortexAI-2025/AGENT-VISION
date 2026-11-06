@@ -45,7 +45,7 @@ export class FakeDevice implements DeviceClient {
     if (!this.observeConsent) throw new DeviceError("consent_required", "no active observation consent");
     return { sessionId: `obs_local_${this.observeCalls.start}`, expiresAt: new Date(Date.now() + r.maxDurationSec * 1000).toISOString(), maxCaptures: r.maxCaptures, intervalMs: r.intervalMs };
   }
-  async observeCapture(_s: string, agentId: string) {
+  async observeCapture(_s: string, _agentId: string) {
     this.observeCalls.capture++;
     if (this.captureError) throw this.captureError;
     const b = this.frames[Math.min(this.frameIdx++, this.frames.length - 1)] ?? screenA();
