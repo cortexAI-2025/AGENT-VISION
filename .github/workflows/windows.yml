@@ -17,6 +17,8 @@ jobs:
       - name: Capture Windows réelle (GDI/PrintWindow) sur le bureau du runner
         run: npm run test:windows
         shell: bash
+        env:
+          AGENT_VISION_WIN_TEST: "1"
       - name: Vérification du packaging
         run: |
           npm pack -w @agent-vision/local-agent --dry-run

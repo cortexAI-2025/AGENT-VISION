@@ -6,7 +6,7 @@ npm run lint            # ESLint
 npm run typecheck       # tsc, tous les paquets
 npm test                # Vitest : unitaires, MCP en mémoire, HTTP, OCR réel, observation, sécurité
 npm run test:x11        # Xvfb + openbox + xterm : capture réelle écran/fenêtre, refus, expiration
-npm run test:windows    # Windows seulement : capture réelle (AGENT_VISION_WIN_TEST=1)
+AGENT_VISION_WIN_TEST=1 npm run test:windows   # Windows seulement : capture réelle (variable d'environnement à définir selon le shell)
 npm run audit:deps      # npm audit (production, niveau high)
 cd android && ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```

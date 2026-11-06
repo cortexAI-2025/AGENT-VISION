@@ -17,7 +17,7 @@
     "test": "vitest run",
     "test:x11": "AGENT_VISION_X11_TEST=1 xvfb-run -a vitest run packages/local-agent/test/x11.integration.test.ts",
     "lint": "eslint .",
-    "test:windows": "AGENT_VISION_WIN_TEST=1 vitest run packages/local-agent/test/windows.integration.test.ts",
+    "test:windows": "vitest run packages/local-agent/test/windows.integration.test.ts",
     "test:all": "npm run lint && npm run build && npm test && npm run test:x11",
     "audit:deps": "npm audit --omit=dev --audit-level=high"
   },
