@@ -16,15 +16,21 @@ describe.skipIf(!enabled)("X11 réel (Xvfb)", () => {
   it("capture l'écran virtuel et reflète son contenu", async () => {
     // fenêtre visible non uniforme : ImageMagick `display` sur le motif intégré
     win = spawn("sh", ["-c", "convert rose: png:- | display -geometry +0+0 -"], { stdio: "ignore" });
-    await new Promise((r) => setTimeout(r, 1500));
     const cap = await detectCapturer();
     expect(cap?.name).toBe("x11");
-    const raw = await new X11Capturer().capture("screen");
-    const png = PNG.sync.read(raw.png);
+    // attente active (et non un délai fixe) : la fenêtre `display` peut mettre du temps à s'afficher sur un runner chargé
+    const distinctColors = (png: PNG) => {
+      const colors = new Set<number>();
+      for (let i = 0; i < png.data.length; i += 4 * 97) colors.add((png.data[i]! << 16) | (png.data[i + 1]! << 8) | png.data[i + 2]!);
+      return colors.size;
+    };
+    let png = PNG.sync.read((await new X11Capturer().capture("screen")).png);
+    for (let n = 0; n < 40 && distinctColors(png) <= 5; n++) {
+      await new Promise((r) => setTimeout(r, 500));
+      png = PNG.sync.read((await new X11Capturer().capture("screen")).png);
+    }
     expect(png.width).toBeGreaterThan(100);
-    const colors = new Set<number>();
-    for (let i = 0; i < png.data.length; i += 4 * 97) colors.add((png.data[i]! << 16) | (png.data[i + 1]! << 8) | png.data[i + 2]!);
-    expect(colors.size).toBeGreaterThan(5); // l'image `rose:` a bien été capturée
+    expect(distinctColors(png)).toBeGreaterThan(5); // l'image `rose:` a bien été capturée
   });
 
   it("service complet : consentement requis puis capture réelle", async () => {

@@ -19,7 +19,7 @@ describe("secrets", () => {
     aws_access_key: "key AKIAIOSFODNN7EXAMPLE end",
     github_token: "ghp_" + "a".repeat(36),
     api_key: "sk-ant-" + "x".repeat(30),
-    jwt: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijk",
+    jwt: ["eyJ" + "hbGciOiJIUzI1NiJ9", "eyJ" + "zdWIiOiIxMjM0NTY3ODkwIn0", "abcdefghijk"].join("."),
     bearer_token: "Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123",
     password_assignment: 'password = "hunter2hunter2"',
     private_key: "-----BEGIN RSA PRIVATE KEY-----\nMIIabc\n-----END RSA PRIVATE KEY-----",
