@@ -51,7 +51,15 @@ export class CaptureService {
     );
   }
 
-  async capture(req: LocalCaptureRequest): Promise<LocalCaptureResponse> {
+  /**
+   * @param opts.preAuthorized  consentement déjà vérifié par une session d'observation (grant d'observation valide)
+   * @param opts.quiet          pas de notification par capture (l'indicateur de session est géré par l'appelant)
+   */
+  get indicator() {
+    return this.d.indicator;
+  }
+
+  async capture(req: LocalCaptureRequest, opts: { preAuthorized?: boolean; quiet?: boolean } = {}): Promise<LocalCaptureResponse> {
     const { config, consent, capturer } = this.d;
     const fail = (code: ErrorCode, msg: string): never => {
       this.log(req.agentId, code, { target: req.target });
@@ -65,10 +73,12 @@ export class CaptureService {
     if (this.busy) fail("rate_limited", "a capture is already in progress");
 
     const last = this.lastCaptureAt.get(req.agentId) ?? 0;
-    if (this.now() - last < config.minIntervalMs) fail("rate_limited", "captures too frequent for this agent");
+    if (!opts.preAuthorized && this.now() - last < config.minIntervalMs) fail("rate_limited", "captures too frequent for this agent");
 
     // --- consentement
-    if (config.consentMode === "prompt") {
+    if (opts.preAuthorized) {
+      /* grant d'observation vérifié par ObservationManager */
+    } else if (config.consentMode === "prompt") {
       if (!(await this.d.prompter.confirmCapture(req.agentId, req.target, req.reason))) {
         fail("consent_denied", "the local user declined the capture");
       }
@@ -82,7 +92,7 @@ export class CaptureService {
       // re-vérifie l'arrêt d'urgence juste avant la capture (la boîte de dialogue peut durer)
       if (consent.isStopped()) fail("capture_stopped", "capture was stopped");
 
-      await this.d.indicator.begin(req.agentId, req.target, req.reason);
+      if (!opts.quiet) await this.d.indicator.begin(req.agentId, req.target, req.reason);
       let raw;
       try {
         raw = await capturer.capture(req.target as CaptureTarget);
@@ -93,7 +103,7 @@ export class CaptureService {
         }
         return fail("capture_failed", (e as Error).message);
       } finally {
-        await this.d.indicator.end();
+        if (!opts.quiet) await this.d.indicator.end();
       }
 
       if (isUniformFrame(raw.png)) {

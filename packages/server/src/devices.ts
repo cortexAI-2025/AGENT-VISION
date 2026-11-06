@@ -24,7 +24,36 @@ export interface CaptureRequest {
   reason?: string;
 }
 
+export interface DeviceCapabilities {
+  deviceId: string;
+  kind: "local-http" | "push";
+  platform?: string;
+  backend?: string;
+  targets: CaptureTarget[];
+  observation: boolean;
+  perCaptureUserConsent: boolean;
+  lockedScreenDetection: boolean;
+  ocrMaskingOnDevice: boolean;
+  tls: boolean;
+  online: boolean;
+  stopped?: boolean;
+  note?: string;
+}
+
+export interface ObserveStart {
+  agentId: string;
+  target: CaptureTarget;
+  intervalMs: number;
+  maxDurationSec: number;
+  maxCaptures: number;
+  reason?: string;
+}
+
 export interface DeviceClient {
+  capabilities(): Promise<DeviceCapabilities>;
+  observeStart(r: ObserveStart): Promise<{ sessionId: string; expiresAt: string; maxCaptures: number; intervalMs: number }>;
+  observeCapture(sessionId: string, agentId: string): Promise<LocalCaptureResponse>;
+  observeStop(sessionId: string, agentId: string): Promise<void>;
   readonly id: string;
   readonly platform?: string;
   capture(req: CaptureRequest): Promise<LocalCaptureResponse>;
@@ -130,6 +159,33 @@ export class LocalHttpDevice implements DeviceClient {
   async stop(): Promise<void> {
     await this.request("POST", "/v1/stop", {});
   }
+
+  async capabilities(): Promise<DeviceCapabilities> {
+    const base = { deviceId: this.id, kind: "local-http" as const, platform: this.platform, tls: this.base.protocol === "https:" };
+    try {
+      const h = (await this.request("GET", "/v1/health")) as any;
+      const c = h.capabilities ?? {};
+      return {
+        ...base, platform: h.platform ?? this.platform, backend: h.backend, targets: c.targets ?? ["screen"], observation: !!c.observation,
+        perCaptureUserConsent: c.consentMode === "prompt", lockedScreenDetection: !!c.lockedScreenDetection, ocrMaskingOnDevice: !!c.ocrMasking,
+        online: true, stopped: !!h.stopped,
+      };
+    } catch (e) {
+      return { ...base, targets: [], observation: false, perCaptureUserConsent: false, lockedScreenDetection: false, ocrMaskingOnDevice: false, online: false, note: (e as Error).message };
+    }
+  }
+
+  async observeStart(r: ObserveStart) {
+    return (await this.request("POST", "/v1/observe/start", r)) as { sessionId: string; expiresAt: string; maxCaptures: number; intervalMs: number };
+  }
+  async observeCapture(sessionId: string, agentId: string): Promise<LocalCaptureResponse> {
+    const parsed = LocalCaptureResponse.safeParse(await this.request("POST", "/v1/observe/capture", { sessionId, agentId }));
+    if (!parsed.success) throw new DeviceError("capture_failed", "malformed capture response from device");
+    return parsed.data;
+  }
+  async observeStop(sessionId: string, agentId: string): Promise<void> {
+    await this.request("POST", "/v1/observe/stop", { sessionId, agentId });
+  }
 }
 
 // ------------------------------------------------------------------ push device (Android)
@@ -178,6 +234,17 @@ export class PushDevice implements DeviceClient {
       });
     });
   }
+
+  async capabilities(): Promise<DeviceCapabilities> {
+    return {
+      deviceId: this.id, kind: "push", platform: this.platform, backend: "android-mediaprojection", targets: ["screen"],
+      observation: false, perCaptureUserConsent: true, lockedScreenDetection: false, ocrMaskingOnDevice: false, tls: true, online: true,
+      note: "Chaque capture exige l'accord de l'utilisateur sur l'appareil ; les images protégées (FLAG_SECURE) arrivent noires et sont rejetées. L'observation périodique n'est pas prise en charge.",
+    };
+  }
+  async observeStart(): Promise<never> { throw new DeviceError("backend_unavailable", "observation is not supported on push devices (user consent is required for every capture)"); }
+  async observeCapture(): Promise<never> { throw new DeviceError("backend_unavailable", "observation is not supported on push devices"); }
+  async observeStop(): Promise<void> {}
 
   pending(): PendingRequest[] {
     return [...this.waiters.values()].map((w) => w.req);

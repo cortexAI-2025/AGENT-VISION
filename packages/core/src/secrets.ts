@@ -23,6 +23,8 @@ const PATTERNS: Array<{ kind: string; re: RegExp }> = [
     re: /\b(?:password|passwd|pwd|secret|token|api[_-]?key)\b\s*[:=]\s*["']?[^\s"']{6,}/gi,
   },
   { kind: "email", re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g },
+  { kind: "session_id", re: /\b(?:PHPSESSID|JSESSIONID|session[_-]?id|sessionid|sid|csrf[_-]?token)\b\s*[:=]\s*["']?[A-Za-z0-9._-]{12,}/gi },
+  { kind: "phone", re: /(?<![\w.])(?:\+|00)\d{1,3}[\s.-]?\(?\d{1,4}\)?(?:[\s.-]?\d{2,4}){2,4}(?![\w])|(?<![\w.])0\d(?:[\s.-]?\d{2}){4}(?![\w])/g },
   { kind: "iban", re: /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,4})?\b/g },
 ];
 
@@ -41,9 +43,23 @@ function luhn(digits: string): boolean {
   return sum % 10 === 0;
 }
 
-export function detectSecrets(text: string): SecretMatch[] {
+export interface CustomPattern {
+  kind: string;
+  re: RegExp;
+}
+
+/** Fabrique des motifs utilisateur (littéraux échappés ou regex) ; un motif invalide lève une erreur. */
+export function buildCustomPatterns(opts: { literals?: string[]; regexes?: string[] }): CustomPattern[] {
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return [
+    ...(opts.literals ?? []).filter(Boolean).map((l) => ({ kind: "custom", re: new RegExp(esc(l), "gi") })),
+    ...(opts.regexes ?? []).map((r) => ({ kind: "custom", re: new RegExp(r, "gi") })),
+  ];
+}
+
+export function detectSecrets(text: string, custom: CustomPattern[] = []): SecretMatch[] {
   const found: SecretMatch[] = [];
-  for (const { kind, re } of PATTERNS) {
+  for (const { kind, re } of [...PATTERNS, ...custom]) {
     re.lastIndex = 0;
     for (const m of text.matchAll(re)) {
       found.push({ kind, start: m.index ?? 0, end: (m.index ?? 0) + m[0].length });

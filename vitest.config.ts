@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@agent-vision/core": fileURLToPath(new URL("./packages/core/src/index.ts", import.meta.url)),
+      "@agent-vision/privacy": fileURLToPath(new URL("./packages/privacy/src/index.ts", import.meta.url)),
     },
   },
   test: { include: ["packages/*/test/**/*.test.ts"], testTimeout: 20000 },

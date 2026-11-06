@@ -21,6 +21,8 @@ export function parsePortalResponse(text: string): { code: number; uri?: string 
  */
 export class WaylandPortalCapturer implements Capturer {
   readonly name = "wayland-portal";
+  /** "window" = mode interactif du portail : l'utilisateur choisit lui-même la zone. */
+  readonly targets: CaptureTarget[] = ["screen", "window"];
   constructor(private readonly exec: Exec = defaultExec, private readonly env: NodeJS.ProcessEnv = process.env) {}
 
   async isAvailable(): Promise<boolean> {

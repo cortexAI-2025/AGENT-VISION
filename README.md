@@ -11,30 +11,28 @@ Infrastructure open source (Apache 2.0) de **perception visuelle** pour agents I
                         └──► Moteur d'analyse ──► Claude / GPT / Gemini / Grok / DeepSeek / Ollama…
 ```
 
-## Les quatre outils MCP
+## Outils MCP
 
-| Outil | Rôle |
+V1 (contrats inchangés) : `capture_screen`, `analyze_screen`, `compare_screens`, `share_visual_report`.
+V1.1 : `list_available_devices`, `get_device_capabilities`, `analyze_screen_region`, `start_observation`, `stop_observation`, `get_observation_status`, `get_visual_changes`. Détail : [docs/MCP-TOOLS.md](docs/MCP-TOOLS.md).
+
+Principes V1.1 : **OCR local fail-closed** avant toute transmission à un modèle ([docs/OCR-PRIVACY.md](docs/OCR-PRIVACY.md)) · **images brutes inaccessibles par défaut** (version assainie seulement, sauf `allowRawImages`) · **observation périodique bornée**, consentie localement, révocable ([docs/OBSERVATION.md](docs/OBSERVATION.md)) · application **Android Compose** ([docs/ANDROID.md](docs/ANDROID.md)) · observation d'applications **Expo** sans les contrôler ([docs/EXPO.md](docs/EXPO.md)).
+
+## État réel
+
+Le statut exact des validations (CI, appareils physiques) est consigné dans [docs/TESTING.md](docs/TESTING.md) et [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md). Résumé :
+
+| Composant | État |
 |---|---|
-| `capture_screen` | Une capture de l'écran ou de la fenêtre active d'un appareil autorisé → `captureId` |
-| `analyze_screen` | Analyse par un modèle multimodal → rapport JSON **observations (faits) / hypothèses (causes supposées)** séparées, zones sensibles masquées |
-| `compare_screens` | Diff avant/après calculé **localement** (régions modifiées) + description sémantique optionnelle |
-| `share_visual_report` | Rapport structuré (image masquée, diagnostic, diff, contexte technique) transmis à un autre agent via les ressources MCP `agent-vision://inbox` et `agent-vision://reports/{id}` |
-
-Chaque outil est utilisable indépendamment. Détails : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-## État réel (ce qui a été testé, et ce qui ne l'a pas été)
-
-| Composant | État | Vérification effectuée |
-|---|---|---|
-| Serveur MCP (stdio + HTTP authentifié), 4 outils, ressources, audit chaîné, rétention, politiques par agent/appareil | ✅ testé | tests Vitest avec un **vrai client MCP**, un vrai processus stdio, un vrai transport HTTP |
-| Moteur d'analyse + adaptateurs Anthropic / OpenAI-compatible / Gemini | ✅ testé contre un **faux fournisseur HTTP local** | forme des requêtes vérifiée ; **aucun appel à une API réelle n'a été fait** (pas de clé) |
-| Agent local : consentement, arrêt d'urgence, API HTTP, masques, rejet des images noires/écran verrouillé | ✅ testé | tests unitaires + HTTP |
-| Capture **Linux X11** | ✅ testée en réel | Xvfb + ImageMagick (`npm run test:x11`) ; la cible `window` (via `xprop`) n'a **pas** pu être testée (outil absent) |
-| Capture **Windows 10/11** (GDI via PowerShell) | ⚠️ **non exécutée** | seule la génération du script et l'analyse de sa sortie sont testées ; **à valider sur une machine Windows** |
-| Capture **Linux Wayland** (portail xdg-desktop-portal) | ⚠️ **non exécutée** | seul l'analyseur de réponse du portail est testé |
-| **Android** (Kotlin, MediaProjection) | ⚠️ **non compilé, non exécuté** | pas de SDK Android ici ; le protocole côté serveur (poll/dépôt/refus/image noire) est testé avec un client simulé |
-| Épinglage TLS du certificat de l'appareil | ✅ testé | certificat auto-signé réel (openssl) : empreinte correcte acceptée, mauvaise rejetée sans rien envoyer |
-| macOS, iOS, Expo/React Native, captures événementielles/périodiques | ❌ non réalisé | prévus après le MVP |
+| Serveur MCP, 11 outils, politiques, audit, rétention | ✅ testé (vrai client MCP, stdio, HTTP) |
+| OCR local + masquage + fail-closed | ✅ testé (Tesseract réel sur images synthétiques) — **pas une garantie absolue** |
+| Observation (appareil + serveur) | ✅ testée (simulations d'appareil + service HTTP réel) |
+| Linux X11 (écran, fenêtre active, refus, expiration) | ✅ testé sous Xvfb |
+| Windows | ⚠️ testé sur **runner CI** `windows-latest`, **pas sur ordinateur physique** |
+| Wayland (portail) | ⚠️ analyseur testé ; **jamais exécuté** sur un compositeur |
+| Android | ⚠️ compile, tests JVM, lint, APK debug (CI) ; **jamais exécuté sur appareil/émulateur** |
+| Fournisseurs IA réels | ⚠️ requêtes vérifiées contre un faux serveur ; **aucun appel réel** |
+| macOS, iOS | ❌ non réalisé |
 
 ## Démarrage rapide
 
@@ -69,13 +67,17 @@ node packages/server/dist/cli.js start --transport http                         
 
 Brancher un agent : [docs/AGENT-GUIDE.md](docs/AGENT-GUIDE.md) et [examples/](examples/).
 
-### 3. Android (prototype)
+### 3. Android
 
-Voir [android/README.md](android/README.md). L'appareil s'enregistre côté serveur comme appareil `push` ; **chaque** demande d'agent déclenche une notification, un écran d'accord, puis la boîte de dialogue système MediaProjection.
+Voir [docs/ANDROID.md](docs/ANDROID.md). APK debug : artefact `agent-vision-debug-apk` du workflow Android. L'appareil s'enregistre côté serveur comme appareil `push` ; **chaque** demande d'agent déclenche une notification, un écran d'accord, puis la boîte de dialogue système MediaProjection.
+
+### 4. Observation périodique (optionnelle)
+
+`agent-vision-local grant-observation --agent tester --minutes 15 --max-captures 60`, puis l'agent appelle `start_observation`. Voir [docs/OBSERVATION.md](docs/OBSERVATION.md).
 
 ## Sécurité en bref
 
-Consentement explicite et local · aucune capture clandestine (notification + log à chaque capture) · aucun contrôle de l'appareil · permissions par agent **et** par appareil · image brute jamais transmise à un autre agent (seule la version masquée) · détection de secrets dans les textes · rétention configurable, suppression à la demande · pas de cloud obligatoire (fournisseur local possible) · journal d'audit chaîné par hachage. Modèle de menaces et **limites connues** : [docs/SECURITY.md](docs/SECURITY.md).
+Consentement explicite et local · OCR local avant tout envoi distant (fail-closed) · aucune capture clandestine (notification + log à chaque capture) · aucun contrôle de l'appareil · permissions par agent **et** par appareil · image brute jamais transmise à un autre agent (seule la version masquée) · détection de secrets dans les textes · rétention configurable, suppression à la demande · pas de cloud obligatoire (fournisseur local possible) · journal d'audit chaîné par hachage. Modèle de menaces et **limites connues** : [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Licence
 

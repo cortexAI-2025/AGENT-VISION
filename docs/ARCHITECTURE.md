@@ -14,6 +14,7 @@
 
 ```
 packages/
+  privacy/      OCR local (Tesseract) + assainissement vérifié des images (fail-closed)
   core/         contrats (zod), détection de secrets, masquage/diff PNG, journal d'audit chaîné
   local-agent/  Agent Vision Local : consentement, arrêt, API HTTP(S), backends de capture
   server/       Serveur MCP + moteur d'analyse (adaptateurs) + stockage + passerelle appareils/admin
@@ -59,6 +60,13 @@ Erreurs : `{ "error": <code>, "message": ... }` avec `isError: true` ; codes : `
 
 Voir [examples/workflow.md](../examples/workflow.md). La séparation faits/hypothèses est portée par le schéma lui-même (`observations` vs `hypotheses`), de sorte qu'un agent développeur ne peut pas confondre un symptôme et une cause supposée.
 
-## 7. Reste à faire (hors MVP)
+## 6 bis. V1.1
+
+- **Pipeline de sécurité visuelle** (`packages/privacy`) : OCR → détection → masquage irréversible → vérification par seconde lecture → transmission ; échec ⇒ rien n'est transmis à un fournisseur distant. L'OCR s'exécute côté serveur (là où l'image est envoyée au modèle) ; l'appareil applique les masques fixes.
+- **Observation** : l'appareil applique le consentement (`/v1/observe/start|capture|stop`) ; le serveur (`observation.ts`) pilote la boucle, détecte les changements (diff + hash perceptuel), limite les analyses (budget, intervalle, backpressure, déduplication). Voir `docs/OBSERVATION.md`.
+- **Images brutes** : `allowRawImages` (défaut `false`) ; sinon version assainie uniquement (`getSanitized`), y compris pour la ressource `agent-vision://captures/{id}` et `includeImage`.
+- **Android** : application Compose (`android/`), appareil « push » ; observation périodique non prise en charge (accord humain à chaque capture).
+
+## 7. Reste à faire
 
 Windows Graphics Capture natif, macOS, iOS, Expo/React Native, captures événementielles et observation périodique, OCR local pour masquer les secrets directement dans les pixels sans dépendre du modèle, signature des rapports, empaquetage (service Windows, `systemd`).

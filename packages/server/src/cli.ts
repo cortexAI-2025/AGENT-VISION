@@ -44,6 +44,7 @@ async function main() {
       const r = AuditLog.verify(`${cfg.dataDir}/audit.jsonl`);
       console.log(JSON.stringify(r));
       process.exit(r.ok ? 0 : 2);
+      break;
     }
     case "start": {
       const config = loadServerConfig(configFile());

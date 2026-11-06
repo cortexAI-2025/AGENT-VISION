@@ -20,3 +20,10 @@ Voir [examples/mcp-client-stdio.json](../examples/mcp-client-stdio.json). Le jet
 4. Après correction : nouvelle capture puis `compare_screens` (`describe: true` pour une description sémantique).
 
 Si un outil répond `consent_required` : demander à l'utilisateur d'exécuter la commande `grant` ; ne pas réessayer en boucle. `capture_stopped` : l'utilisateur a arrêté la capture, respecter cette décision.
+
+## V1.1
+- Découvrir : `list_available_devices`, puis `get_device_capabilities`.
+- Observer : l'utilisateur lance `grant-observation` ; l'agent appelle `start_observation` (liste explicite dans `tools`), lit `get_visual_changes` avec `sinceChangeId`, et appelle `stop_observation` à la fin. `consent_required` ⇒ demander la commande à l'utilisateur, ne pas boucler.
+- Détail d'une zone : `analyze_screen_region`.
+- Les images renvoyées sont assainies ; une image brute exige `allowRawImages` dans la politique de l'agent.
+- Expo / React Native : voir `EXPO.md`.

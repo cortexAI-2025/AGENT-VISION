@@ -17,6 +17,7 @@ export function parseWmName(xpropOut: string): string | undefined {
 /** Linux / X11 : maim, ImageMagick `import` ou scrot (premier disponible). */
 export class X11Capturer implements Capturer {
   name = "x11";
+  readonly targets: CaptureTarget[] = ["screen", "window"];
   private tool?: "maim" | "import" | "scrot";
   constructor(private readonly exec: Exec = defaultExec, private readonly env: NodeJS.ProcessEnv = process.env) {}
 
@@ -50,7 +51,7 @@ export class X11Capturer implements Capturer {
       if (!id || id === "0x0") return undefined;
       let title: string | undefined;
       try {
-        title = parseWmName((await this.exec("xprop", ["-id", id, "_NET_WM_NAME"], { timeoutMs: 3000 })).stdout.toString());
+        title = parseWmName((await this.exec("xprop", ["-id", id, "_NET_WM_NAME", "WM_NAME"], { timeoutMs: 3000 })).stdout.toString());
       } catch {
         /* titre facultatif */
       }

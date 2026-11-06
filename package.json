@@ -2,20 +2,32 @@
   "name": "agent-vision",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Perception visuelle open source pour agents IA (serveur MCP + agent local + moteur d'analyse)",
   "license": "Apache-2.0",
-  "workspaces": ["packages/*"],
-  "engines": { "node": ">=20" },
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "build": "npm run build -w @agent-vision/core && npm run build -w @agent-vision/server -w @agent-vision/local-agent",
+    "build": "npm run build -w @agent-vision/core && npm run build -w @agent-vision/privacy && npm run build -w @agent-vision/server -w @agent-vision/local-agent",
     "typecheck": "npm run build",
     "test": "vitest run",
-    "test:x11": "AGENT_VISION_X11_TEST=1 xvfb-run -a vitest run packages/local-agent/test/x11.integration.test.ts"
+    "test:x11": "AGENT_VISION_X11_TEST=1 xvfb-run -a vitest run packages/local-agent/test/x11.integration.test.ts",
+    "lint": "eslint .",
+    "test:windows": "vitest run packages/local-agent/test/windows.integration.test.ts",
+    "test:all": "npm run lint && npm run build && npm test && npm run test:x11",
+    "audit:deps": "npm audit --omit=dev --audit-level=high"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/node": "^22.10.0",
     "@types/pngjs": "^6.0.5",
+    "eslint": "^9.39.5",
     "typescript": "^5.9.0",
+    "typescript-eslint": "^8.72.1",
     "vitest": "^3.2.0"
   }
 }

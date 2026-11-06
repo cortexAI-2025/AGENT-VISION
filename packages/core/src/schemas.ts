@@ -117,6 +117,15 @@ export const AnalysisReport = z.object({
   privacy: z.object({
     sensitiveRegionsMasked: z.number().int(),
     secretKindsRedactedFromText: z.array(z.string()),
+    /** Résultat du pipeline OCR local appliqué avant toute transmission. */
+    ocr: z
+      .object({
+        status: z.enum(["verified", "off", "skipped_local_provider"]),
+        engine: z.string().optional(),
+        regionsMasked: z.number().int().default(0),
+        kinds: z.array(z.string()).default([]),
+      })
+      .optional(),
   }),
   context: z.string().optional(),
 });
@@ -156,6 +165,6 @@ export const VisualReport = z.object({
   }),
   analysis: AnalysisReport.optional(),
   diff: DiffResult.optional(),
-  technicalContext: z.record(z.string()).default({}),
+  technicalContext: z.record(z.string(), z.string()).default({}),
 });
 export type VisualReport = z.infer<typeof VisualReport>;

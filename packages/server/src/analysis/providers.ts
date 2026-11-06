@@ -82,9 +82,8 @@ export class GeminiProvider implements VisionProvider {
 /** Fournisseur de test : réponse fournie par une fonction. */
 export class MockProvider implements VisionProvider {
   readonly name = "mock";
-  readonly local = true;
   calls: CompletionInput[] = [];
-  constructor(readonly model = "mock-1", private readonly respond: (i: CompletionInput) => string | Promise<string> = () => "{}") {}
+  constructor(readonly model = "mock-1", private readonly respond: (i: CompletionInput) => string | Promise<string> = () => "{}", readonly local = true) {}
   async complete(i: CompletionInput): Promise<string> {
     this.calls.push(i);
     return this.respond(i);
